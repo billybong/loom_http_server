@@ -12,7 +12,7 @@ import java.net.http.HttpResponse;
 import static util.Functions.unchecked;
 
 public class App {
-    private final static HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
+    private final static HttpClient HTTP_CLIENT = HttpClient.newBuilder().executor(Execution.FIBER_EXECUTOR).build();
     private final static HttpRequest HTTP_REQUEST = HttpRequest.newBuilder(URI.create("http://localhost:8080/")).GET().build();
 
     public static void main(String[] args) throws Exception {

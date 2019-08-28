@@ -35,7 +35,7 @@ public class SampleHttpServer implements AutoCloseable{
     private void handleRequest(HttpExchange exchange) {
         //Logger.log("Http server received request");
         //performExpensiveIO();
-        sleep(100);
+        sleep(1000);
         try (var responseBody = exchange.getResponseBody()) {
             exchange.sendResponseHeaders(200, RESPONSE.length);
             responseBody.write(RESPONSE);
