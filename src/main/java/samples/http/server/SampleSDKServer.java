@@ -20,7 +20,7 @@ public class SampleSDKServer implements AutoCloseable {
     private static final byte[] RESPONSE = "Hello from samples server".getBytes();
     private HttpServer httpServer;
 
-    public static SampleSDKServer start() {
+    public static SampleSDKServer startServer() {
         var sampleHttpServer = new SampleSDKServer();
         try {
             sampleHttpServer.startHttpServer();
@@ -38,6 +38,10 @@ public class SampleSDKServer implements AutoCloseable {
         httpServer.setExecutor(Execution.SINGLE_THREADED_FIBER_EXECUTOR);
         httpServer.createContext("/", this::handleRequest);
         httpServer.start();
+        awaitStartup();
+    }
+
+    private void awaitStartup() {
         while (true) {
             try {
                 var response = HTTP_CLIENT.send(HTTP_REQUEST, HttpResponse.BodyHandlers.discarding());

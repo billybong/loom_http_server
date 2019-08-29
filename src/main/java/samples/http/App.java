@@ -1,6 +1,6 @@
 package samples.http;
 
-import samples.http.server.SampleSDKServer;
+import samples.http.server.SampleNanoServer;
 import util.Execution;
 import util.Logger;
 
@@ -13,21 +13,19 @@ public class App {
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().executor(Execution.SINGLE_THREADED_FIBER_EXECUTOR).build();
     private static final HttpRequest HTTP_REQUEST = HttpRequest.newBuilder(URI.create("http://127.0.0.1:8080/")).GET().build();
     private static final HttpResponse.BodyHandler<Void> DISCARDING_BODY_HANDLER = HttpResponse.BodyHandlers.discarding();
-    //private static final SampleNanoServer HTTP_SERVER = SampleNanoServer.startServer();
-    private static final SampleSDKServer HTTP_SERVER = SampleSDKServer.start();
 
     public static void main(String[] args) {
         int nrOfRequests = 1_000;
-        var started = 0L;
-        warmup(30);
-        started = System.currentTimeMillis();
-        try (var scope = FiberScope.open()) {
-            for (int i = 0; i < nrOfRequests; i++) {
-                scope.schedule(Execution.SINGLE_THREAD_EXECUTOR, App::sendRequest);
+        try (var httpServer = SampleNanoServer.startServer()) {
+            var started = 0L;
+            warmup(30);
+            started = System.currentTimeMillis();
+            try (var scope = FiberScope.open()) {
+                for (int i = 0; i < nrOfRequests; i++) {
+                    scope.schedule(Execution.SINGLE_THREAD_EXECUTOR, App::sendRequest);
+                }
             }
-        } finally {
             Logger.log(String.format("Took %d milliseconds", System.currentTimeMillis() - started));
-            HTTP_SERVER.close();
         }
     }
 
