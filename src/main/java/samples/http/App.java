@@ -1,7 +1,6 @@
 package samples.http;
 
 import util.Execution;
-import util.Functions;
 import util.Logger;
 
 import java.net.URI;
@@ -9,20 +8,18 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
-import static util.Functions.unchecked;
-
 public class App {
-    private final static HttpClient HTTP_CLIENT = HttpClient.newBuilder().executor(Execution.FIBER_EXECUTOR).build();
-    private final static HttpRequest HTTP_REQUEST = HttpRequest.newBuilder(URI.create("http://127.0.0.1:8080/")).GET().build();
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().executor(Execution.SINGLE_THREADED_FIBER_EXECUTOR).build();
+    private static final HttpRequest HTTP_REQUEST = HttpRequest.newBuilder(URI.create("http://127.0.0.1:8080/")).GET().build();
+    private static final HttpResponse.BodyHandler<Void> RESPONSE_BODY_HANDLER = HttpResponse.BodyHandlers.discarding();
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         int nrOfRequests = 1_000;
-        warmup();
-
         var started = 0L;
         var httpServer = SampleHttpServer.start();
+        warmup();
+        started = System.currentTimeMillis();
         try (var scope = FiberScope.open()) {
-            started = System.currentTimeMillis();
             for (int i = 0; i < nrOfRequests; i++) {
                 scope.schedule(Execution.SINGLE_THREAD_EXECUTOR, App::sendRequest);
             }
@@ -30,25 +27,32 @@ public class App {
             Logger.log(String.format("Took %d milliseconds", System.currentTimeMillis() - started));
             httpServer.close();
         }
-
-    }
-
-    private static void warmup() {
-        try (var httpServer = SampleHttpServer.start(); var scope = FiberScope.open()) {
-            for (int i = 0; i < 1000; i++) {
-                scope.schedule(Execution.SINGLE_THREAD_EXECUTOR, App::sendRequest);
-            }
-        }
     }
 
     private static void sendRequest() {
         try {
             var started = System.currentTimeMillis();
             Logger.log("Sending request");
-            var response = HTTP_CLIENT.send(HTTP_REQUEST, HttpResponse.BodyHandlers.ofString());
-            Logger.log(String.format("Received response: %s after %d ms", response.body(), System.currentTimeMillis() - started));
+            var response = HTTP_CLIENT.send(HTTP_REQUEST, RESPONSE_BODY_HANDLER);
+            Logger.log(String.format("Received response: %s after %d ms", response.statusCode(), System.currentTimeMillis() - started));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static void warmup() {
+        Logger.log("Warming up JIT...");
+        var warmupDurationInSeconds = 30;
+        Logger.disable();
+        var started = System.currentTimeMillis();
+        while (System.currentTimeMillis() - started < warmupDurationInSeconds * 1000) {
+            try (var scope = FiberScope.open()) {
+                for (int i = 0; i < 100; i++) {
+                    scope.schedule(Execution.SINGLE_THREAD_EXECUTOR, () -> HTTP_CLIENT.send(HTTP_REQUEST, RESPONSE_BODY_HANDLER));
+                }
+            }
+        }
+        Logger.enable();
+        Logger.log("Warmed up!");
     }
 }
