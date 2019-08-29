@@ -12,11 +12,12 @@ public class App {
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().executor(Execution.SINGLE_THREADED_FIBER_EXECUTOR).build();
     private static final HttpRequest HTTP_REQUEST = HttpRequest.newBuilder(URI.create("http://127.0.0.1:8080/")).GET().build();
     private static final HttpResponse.BodyHandler<Void> RESPONSE_BODY_HANDLER = HttpResponse.BodyHandlers.discarding();
+    //private static final SampleNanoServer HTTP_SERVER = SampleNanoServer.startServer();
+    private static final SampleSDKServer HTTP_SERVER = SampleSDKServer.start();
 
     public static void main(String[] args) {
         int nrOfRequests = 1_000;
         var started = 0L;
-        var httpServer = SampleHttpServer.start();
         warmup();
         started = System.currentTimeMillis();
         try (var scope = FiberScope.open()) {
@@ -25,7 +26,7 @@ public class App {
             }
         } finally {
             Logger.log(String.format("Took %d milliseconds", System.currentTimeMillis() - started));
-            httpServer.close();
+            HTTP_SERVER.close();
         }
     }
 
