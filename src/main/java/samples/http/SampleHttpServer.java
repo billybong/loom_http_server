@@ -12,17 +12,20 @@ import java.util.concurrent.CountDownLatch;
 public class SampleHttpServer implements AutoCloseable{
 
     public static final byte[] RESPONSE = "Hello from samples server".getBytes();
-    private final CountDownLatch latch;
     private HttpServer httpServer;
 
-    public static SampleHttpServer start(int requestsToAwait) throws IOException {
-        var sampleHttpServer = new SampleHttpServer(requestsToAwait);
-        sampleHttpServer.startHttpServer();
-        return sampleHttpServer;
+    public static SampleHttpServer start() {
+        var sampleHttpServer = new SampleHttpServer();
+        try {
+            sampleHttpServer.startHttpServer();
+            return sampleHttpServer;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    private SampleHttpServer(int requestsToAwait) {
-        latch = new CountDownLatch(requestsToAwait);
+    private SampleHttpServer() {
+
     }
 
     private void startHttpServer() throws IOException {
@@ -33,10 +36,10 @@ public class SampleHttpServer implements AutoCloseable{
     }
 
     private void handleRequest(HttpExchange exchange) {
-        //Logger.log("Http server received request");
-        //performExpensiveIO();
+        Logger.log("Http server received request");
         sleep(1000);
         try (var responseBody = exchange.getResponseBody()) {
+            exchange.getResponseHeaders().set("Content-Type", "application/octet");
             exchange.sendResponseHeaders(200, RESPONSE.length);
             responseBody.write(RESPONSE);
         } catch (IOException e) {
@@ -44,15 +47,6 @@ public class SampleHttpServer implements AutoCloseable{
             e.printStackTrace();
         } finally {
             exchange.close();
-        }
-    }
-
-    private void performExpensiveIO() {
-        latch.countDown();
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
         }
     }
 

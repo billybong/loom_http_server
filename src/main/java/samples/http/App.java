@@ -13,27 +13,40 @@ import static util.Functions.unchecked;
 
 public class App {
     private final static HttpClient HTTP_CLIENT = HttpClient.newBuilder().executor(Execution.FIBER_EXECUTOR).build();
-    private final static HttpRequest HTTP_REQUEST = HttpRequest.newBuilder(URI.create("http://localhost:8080/")).GET().build();
+    private final static HttpRequest HTTP_REQUEST = HttpRequest.newBuilder(URI.create("http://127.0.0.1:8080/")).GET().build();
 
     public static void main(String[] args) throws Exception {
-        int nrOfRequests = 2000;
-        for (int j = 0; j < 100; j++) {
-            var started = System.currentTimeMillis();
-            try (var httpServer = SampleHttpServer.start(nrOfRequests); var scope = FiberScope.open()) {
-                for (int i = 0; i < nrOfRequests; i++) {
-                    scope.schedule(Execution.SINGLE_THREAD_EXECUTOR, App::sendRequest);
-                }
+        int nrOfRequests = 1_000;
+        warmup();
+
+        var started = 0L;
+        var httpServer = SampleHttpServer.start();
+        try (var scope = FiberScope.open()) {
+            started = System.currentTimeMillis();
+            for (int i = 0; i < nrOfRequests; i++) {
+                scope.schedule(Execution.SINGLE_THREAD_EXECUTOR, App::sendRequest);
             }
-            Logger.log("Took " + (System.currentTimeMillis() - started) + " milliseconds");
+        } finally {
+            Logger.log(String.format("Took %d milliseconds", System.currentTimeMillis() - started));
+            httpServer.close();
         }
 
     }
 
+    private static void warmup() {
+        try (var httpServer = SampleHttpServer.start(); var scope = FiberScope.open()) {
+            for (int i = 0; i < 1000; i++) {
+                scope.schedule(Execution.SINGLE_THREAD_EXECUTOR, App::sendRequest);
+            }
+        }
+    }
+
     private static void sendRequest() {
         try {
-            //Logger.log("Sending request");
+            var started = System.currentTimeMillis();
+            Logger.log("Sending request");
             var response = HTTP_CLIENT.send(HTTP_REQUEST, HttpResponse.BodyHandlers.ofString());
-            //Logger.log("Received response: " + response.body());
+            Logger.log(String.format("Received response: %s after %d ms", response.body(), System.currentTimeMillis() - started));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

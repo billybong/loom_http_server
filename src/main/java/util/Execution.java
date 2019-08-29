@@ -5,7 +5,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class Execution {
-
     private Execution() {}
 
     public final static ExecutorService SINGLE_THREAD_EXECUTOR = Executors.newSingleThreadExecutor(runnable -> {
