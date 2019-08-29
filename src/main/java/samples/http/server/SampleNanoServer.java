@@ -39,7 +39,7 @@ public class SampleNanoServer extends NanoHTTPD implements AutoCloseable {
     private class FiberAsyncRunner extends DefaultAsyncRunner implements AsyncRunner {
         @Override
         public void exec(ClientHandler code) {
-            Execution.SINGLE_THREADED_FIBER_EXECUTOR.execute(code);
+            Execution.FIBER_EXECUTOR.execute(code);
         }
     }
 }

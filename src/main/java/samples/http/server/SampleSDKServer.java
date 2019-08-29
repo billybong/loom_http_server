@@ -15,7 +15,7 @@ import java.net.http.HttpResponse;
 
 public class SampleSDKServer implements AutoCloseable {
 
-    private final static HttpClient HTTP_CLIENT = HttpClient.newBuilder().executor(Execution.SINGLE_THREADED_FIBER_EXECUTOR).build();
+    private final static HttpClient HTTP_CLIENT = HttpClient.newBuilder().executor(Execution.FIBER_EXECUTOR).build();
     private final static HttpRequest HTTP_REQUEST = HttpRequest.newBuilder(URI.create("http://127.0.0.1:8080/")).GET().build();
     private static final byte[] RESPONSE = "Hello from samples server".getBytes();
     private HttpServer httpServer;
@@ -35,7 +35,7 @@ public class SampleSDKServer implements AutoCloseable {
 
     private void startHttpServer() throws IOException {
         httpServer = HttpServer.create(new InetSocketAddress("localhost", 8080), -1);
-        httpServer.setExecutor(Execution.SINGLE_THREADED_FIBER_EXECUTOR);
+        httpServer.setExecutor(Execution.FIBER_EXECUTOR);
         httpServer.createContext("/", this::handleRequest);
         httpServer.start();
         awaitStartup();

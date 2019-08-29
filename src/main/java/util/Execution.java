@@ -12,5 +12,5 @@ public final class Execution {
         thread.setDaemon(true);
         return thread;
     });
-    public final static Executor SINGLE_THREADED_FIBER_EXECUTOR = command -> FiberScope.background().schedule(SINGLE_THREAD_EXECUTOR, command);
+    public final static Executor FIBER_EXECUTOR = command -> FiberScope.background().schedule(SINGLE_THREAD_EXECUTOR, command);
 }
