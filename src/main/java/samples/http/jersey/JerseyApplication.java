@@ -1,20 +1,17 @@
-package samples.http.server.jersey;
+package samples.http.jersey;
 
 import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
-import org.eclipse.jetty.util.thread.ExecutorThreadPool;
 import org.eclipse.jetty.util.thread.ThreadPool;
 import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.servlet.ServletContainer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import util.Execution;
 
 import java.util.concurrent.*;
-import java.util.concurrent.locks.Lock;
 
 import static org.eclipse.jetty.servlet.ServletContextHandler.NO_SESSIONS;
 
@@ -23,7 +20,7 @@ public class JerseyApplication {
     private static final Logger logger = LoggerFactory.getLogger(JerseyApplication.class);
 
     public static void main(String[] args) {
-        Server server = new Server(createThreadPool());
+        Server server = new Server(createThreadPool2());
 
         ServerConnector http = new ServerConnector(server, new HttpConnectionFactory());
         http.setPort(8080);
@@ -38,7 +35,7 @@ public class JerseyApplication {
 
         try {
             server.start();
-            new CountDownLatch(1).await();
+            server.join();
         } catch (Exception ex) {
             logger.error("Error occurred while starting Jetty", ex);
             System.exit(1);
@@ -47,21 +44,34 @@ public class JerseyApplication {
         }
     }
 
-    private static ThreadPool createThreadPool() {
-        ThreadPoolExecutor threadPoolExecutor = new FiberWrappingThreadPoolExecutor(2, 4, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
-        return new ExecutorThreadPool(threadPoolExecutor);
-    }
+    private static ThreadPool createThreadPool2() {
+        ExecutorService executorService = Executors.newWorkStealingPool(5);
 
-    private static class FiberWrappingThreadPoolExecutor extends ThreadPoolExecutor {
+        return new ThreadPool() {
+            @Override
+            public void join() throws InterruptedException {
+                new CountDownLatch(1).await();
+            }
 
-        public FiberWrappingThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue) {
-            super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue);
-        }
+            @Override
+            public int getThreads() {
+                return 0;
+            }
 
-        @Override
-        public void execute(Runnable command) {
-            FiberScope.background().schedule(super::execute, command);
-            //FiberScope.background().schedule(Execution.SINGLE_THREAD_EXECUTOR, command);
-        }
+            @Override
+            public int getIdleThreads() {
+                return Integer.MAX_VALUE;
+            }
+
+            @Override
+            public boolean isLowOnThreads() {
+                return false;
+            }
+
+            @Override
+            public void execute(Runnable command) {
+                FiberScope.background().schedule(executorService, command); //--works with 1 thread - but Jetty is configured with 5
+            }
+        };
     }
 }

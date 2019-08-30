@@ -1,6 +1,5 @@
-package samples.http;
+package samples.http.server;
 
-import samples.http.server.SampleNanoServer;
 import util.Execution;
 import util.Logger;
 
