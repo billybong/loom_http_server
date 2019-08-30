@@ -8,46 +8,40 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.util.thread.ThreadPool;
 import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.servlet.ServletContainer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import util.Logger;
 
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.eclipse.jetty.servlet.ServletContextHandler.NO_SESSIONS;
 
 public class JerseyApplication {
 
-    private static final Logger logger = LoggerFactory.getLogger(JerseyApplication.class);
-
     public static void main(String[] args) {
-        Server server = new Server(createThreadPool2());
-
-        ServerConnector http = new ServerConnector(server, new HttpConnectionFactory());
-        http.setPort(8080);
-        server.addConnector(http);
-        ServletContextHandler servletContextHandler = new ServletContextHandler(NO_SESSIONS);
-        servletContextHandler.setContextPath("/");
-        server.setHandler(servletContextHandler);
-
-        ServletHolder servletHolder = servletContextHandler.addServlet(ServletContainer.class, "/*");
-        servletHolder.setInitOrder(0);
-        servletHolder.setInitParameter(ServerProperties.PROVIDER_CLASSNAMES, Endpoint.class.getCanonicalName());
+        var server = new Server(createThreadPool());
+        doTheJettyCeremonialDance(server);
 
         try {
             server.start();
             server.join();
         } catch (Exception ex) {
-            logger.error("Error occurred while starting Jetty", ex);
+            Logger.log("Error occurred while starting Jetty: "+ ex.getMessage());
             System.exit(1);
         } finally {
             server.destroy();
         }
     }
 
-    private static ThreadPool createThreadPool2() {
+    private static ThreadPool createThreadPool() {
         ExecutorService executorService = Executors.newWorkStealingPool(5);
 
         return new ThreadPool() {
+            @Override
+            public void execute(Runnable command) {
+                FiberScope.background().schedule(executorService, command); //--works with 1 thread - but Jetty is configured with 5
+            }
+
             @Override
             public void join() throws InterruptedException {
                 new CountDownLatch(1).await();
@@ -67,11 +61,19 @@ public class JerseyApplication {
             public boolean isLowOnThreads() {
                 return false;
             }
-
-            @Override
-            public void execute(Runnable command) {
-                FiberScope.background().schedule(executorService, command); //--works with 1 thread - but Jetty is configured with 5
-            }
         };
+    }
+
+    private static void doTheJettyCeremonialDance(Server server) {
+        ServerConnector http = new ServerConnector(server, new HttpConnectionFactory());
+        http.setPort(8080);
+        server.addConnector(http);
+        ServletContextHandler servletContextHandler = new ServletContextHandler(NO_SESSIONS);
+        servletContextHandler.setContextPath("/");
+        server.setHandler(servletContextHandler);
+
+        ServletHolder servletHolder = servletContextHandler.addServlet(ServletContainer.class, "/*");
+        servletHolder.setInitOrder(0);
+        servletHolder.setInitParameter(ServerProperties.PROVIDER_CLASSNAMES, Endpoint.class.getCanonicalName());
     }
 }
