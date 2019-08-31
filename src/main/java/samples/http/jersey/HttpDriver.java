@@ -7,8 +7,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class HttpDriver {
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().build();
@@ -20,19 +20,23 @@ public class HttpDriver {
     public static void main(String[] args) {
         var requests = RAMP_UP;
         while (true) {
-            var started = System.currentTimeMillis();
-            var fastest = new AtomicLong(Long.MAX_VALUE);
-            var slowest = new AtomicLong(0L);
             try (var scope = FiberScope.open()) {
-                for (int i = 0; i < requests; i++) {
-                    scope.schedule(Execution.FIBER_EXECUTOR, ()-> {
-                        var responseTime = HttpDriver.sendRequest();
-                        slowest.getAndUpdate(current -> Math.max(responseTime, current));
-                        fastest.getAndUpdate(current -> Math.min(responseTime, current));
-                    });
-                }
+                var started = System.currentTimeMillis();
+                var responseFibers = IntStream.range(0, requests)
+                        .mapToObj(i -> scope.schedule(Execution.FIBER_EXECUTOR, HttpDriver::sendRequest))
+                        .collect(Collectors.toList());
+
+                var responseTimes = responseFibers.stream()
+                        .map(fiber -> fiber.toFuture().join())
+                        .sorted()
+                        .collect(Collectors.toList());
+
+                var duration = System.currentTimeMillis() - started;
+                var fastest = responseTimes.get(0);
+                var slowest = responseTimes.get(responseTimes.size() - 1);
+
+                Logger.log(String.format("%d requests in %d ms. Fastest: %d Slowest: %d", requests, duration, fastest, slowest));
             }
-            Logger.log(String.format("%d requests in %d ms. Fastest: %d Slowest: %d", requests, System.currentTimeMillis() - started, fastest.get(), slowest.get()));
             requests = Math.min(MAX_REQUESTS, requests + RAMP_UP);
         }
     }

@@ -19,7 +19,8 @@ import static org.eclipse.jetty.servlet.ServletContextHandler.NO_SESSIONS;
 public class JerseyApplication {
 
     public static void main(String[] args) {
-        var server = new Server(createThreadPool());
+        var fiberThreadPool = new FiberBackedThreadPool();
+        var server = new Server(fiberThreadPool);
         doTheJettyCeremonialDance(server);
 
         try {
@@ -33,39 +34,9 @@ public class JerseyApplication {
         }
     }
 
-    private static ThreadPool createThreadPool() {
-        ExecutorService executorService = Executors.newWorkStealingPool(5);
-
-        return new ThreadPool() {
-            @Override
-            public void execute(Runnable command) {
-                FiberScope.background().schedule(executorService, command); //--works with 1 thread - but Jetty is configured with 5
-            }
-
-            @Override
-            public void join() throws InterruptedException {
-                new CountDownLatch(1).await();
-            }
-
-            @Override
-            public int getThreads() {
-                return 0;
-            }
-
-            @Override
-            public int getIdleThreads() {
-                return Integer.MAX_VALUE;
-            }
-
-            @Override
-            public boolean isLowOnThreads() {
-                return false;
-            }
-        };
-    }
 
     private static void doTheJettyCeremonialDance(Server server) {
-        ServerConnector http = new ServerConnector(server, new HttpConnectionFactory());
+        ServerConnector http = new ServerConnector(server, 1, 1, new HttpConnectionFactory());
         http.setPort(8080);
         server.addConnector(http);
         ServletContextHandler servletContextHandler = new ServletContextHandler(NO_SESSIONS);
@@ -75,5 +46,35 @@ public class JerseyApplication {
         ServletHolder servletHolder = servletContextHandler.addServlet(ServletContainer.class, "/*");
         servletHolder.setInitOrder(0);
         servletHolder.setInitParameter(ServerProperties.PROVIDER_CLASSNAMES, Endpoint.class.getCanonicalName());
+    }
+
+    public static class FiberBackedThreadPool implements ThreadPool {
+        //Jetty reserves at least 1 thread for IO connector, so 2 is magic number to get 1 worker thread.
+        ExecutorService executorService = Executors.newWorkStealingPool(2);
+
+        @Override
+        public void execute(Runnable command) {
+            FiberScope.background().schedule(executorService, command);
+        }
+
+        @Override
+        public void join() throws InterruptedException {
+            new CountDownLatch(1).await();
+        }
+
+        @Override
+        public int getThreads() {
+            return 0;
+        }
+
+        @Override
+        public int getIdleThreads() {
+            return Integer.MAX_VALUE;
+        }
+
+        @Override
+        public boolean isLowOnThreads() {
+            return false;
+        }
     }
 }
