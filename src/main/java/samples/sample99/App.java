@@ -1,4 +1,4 @@
-package samples.http.server;
+package samples.sample99;
 
 import util.Execution;
 import util.Logger;

@@ -1,4 +1,4 @@
-package samples.http.server;
+package samples.sample99;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;

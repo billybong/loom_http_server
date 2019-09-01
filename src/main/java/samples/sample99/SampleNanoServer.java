@@ -1,4 +1,4 @@
-package samples.http.server;
+package samples.sample99;
 
 import fi.iki.elonen.NanoHTTPD;
 import util.Execution;

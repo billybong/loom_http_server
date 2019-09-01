@@ -1,4 +1,4 @@
-package samples.http.jersey;
+package samples.sample3;
 
 import util.Logger;
 

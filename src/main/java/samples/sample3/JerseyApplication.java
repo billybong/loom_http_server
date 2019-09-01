@@ -1,4 +1,4 @@
-package samples.http.jersey;
+package samples.sample3;
 
 import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.Server;
