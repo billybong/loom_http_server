@@ -8,8 +8,11 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.util.thread.ThreadPool;
 import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.servlet.ServletContainer;
-import util.Logger;
+import samples.sample3.mbean.ConcurrencyReporter;
 
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+import java.lang.management.ManagementFactory;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -25,10 +28,12 @@ public class JerseyApplication {
 
         server.start();
 
-        while(true){
-            Thread.sleep(1000);
-            Logger.log("Current concurrency: " + Endpoint.getConcurrency());
-        }
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        ObjectName name = new ObjectName("samples.samples3:type=ConcurrencyReporter");
+        var mbean = new ConcurrencyReporter();
+        mbs.registerMBean(mbean, name);
+
+        server.join();
     }
 
 
