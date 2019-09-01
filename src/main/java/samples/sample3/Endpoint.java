@@ -1,7 +1,5 @@
 package samples.sample3;
 
-import util.Logger;
-
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -9,21 +7,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Path("/hello")
 public class Endpoint {
 
-    private static AtomicInteger ongoingWaits = new AtomicInteger();
-    private static AtomicInteger maxSeenConcurrency = new AtomicInteger();
+    private static AtomicInteger concurrency = new AtomicInteger();
 
     @GET
     public String hello() throws InterruptedException {
-        var currentlyWaiting = ongoingWaits.incrementAndGet();
-        maxSeenConcurrency.getAndUpdate(currentHighMark -> {
-            if(currentlyWaiting <= currentHighMark){
-                return currentHighMark;
-            }
-            Logger.log("At " + currentlyWaiting + " concurrency");
-            return currentlyWaiting;
-        });
+        //Logger.log("in endpoint");
+        concurrency.incrementAndGet();
         Thread.sleep(1000);
-        ongoingWaits.decrementAndGet();
+        concurrency.decrementAndGet();
         return "hello";
+    }
+
+    public static int getConcurrency(){
+        return concurrency.get();
     }
 }

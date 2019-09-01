@@ -18,19 +18,16 @@ import static org.eclipse.jetty.servlet.ServletContextHandler.NO_SESSIONS;
 
 public class JerseyApplication {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         var fiberThreadPool = new FiberBackedThreadPool();
         var server = new Server(fiberThreadPool);
         doTheJettyCeremonialDance(server);
 
-        try {
-            server.start();
-            server.join();
-        } catch (Exception ex) {
-            Logger.log("Error occurred while starting Jetty: "+ ex.getMessage());
-            System.exit(1);
-        } finally {
-            server.destroy();
+        server.start();
+
+        while(true){
+            Thread.sleep(1000);
+            Logger.log("Current concurrency: " + Endpoint.getConcurrency());
         }
     }
 
