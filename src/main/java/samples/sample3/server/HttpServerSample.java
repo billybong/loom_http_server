@@ -4,13 +4,12 @@ import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.util.thread.ThreadPool;
 import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.servlet.ServletContainer;
 import samples.sample3.server.mbean.ConcurrencyReporter;
 
-import javax.management.*;
+import javax.management.ObjectName;
 import java.lang.management.ManagementFactory;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -35,22 +34,23 @@ public class HttpServerSample {
     }
 
     private static void registerReporterMBean() throws Exception {
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        ObjectName name = new ObjectName("httpserver:type=ConcurrencyReporter");
-        var mbean = new ConcurrencyReporter();
-        mbs.registerMBean(mbean, name);
+        ManagementFactory.getPlatformMBeanServer().registerMBean(
+                new ConcurrencyReporter(),
+                new ObjectName("httpserver:type=ConcurrencyReporter")
+        );
     }
 
 
     private static void doTheJettyCeremonialDance(Server server) {
-        ServerConnector http = new ServerConnector(server, 1, 1, new HttpConnectionFactory());
+        var http = new ServerConnector(server, 1, 1, new HttpConnectionFactory());
         http.setPort(8080);
         server.addConnector(http);
-        ServletContextHandler servletContextHandler = new ServletContextHandler(NO_SESSIONS);
+
+        var servletContextHandler = new ServletContextHandler(NO_SESSIONS);
         servletContextHandler.setContextPath("/");
         server.setHandler(servletContextHandler);
 
-        ServletHolder servletHolder = servletContextHandler.addServlet(ServletContainer.class, "/*");
+        var servletHolder = servletContextHandler.addServlet(ServletContainer.class, "/*");
         servletHolder.setInitOrder(0);
         servletHolder.setInitParameter(ServerProperties.PROVIDER_CLASSNAMES, Endpoint.class.getCanonicalName());
     }
