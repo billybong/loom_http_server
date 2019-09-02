@@ -1,9 +1,9 @@
 package samples.sample3.client;
 
-import samples.sample3.client.mbean.ResponseTimesMBean;
 import util.Logger;
 
 import javax.management.*;
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -35,21 +35,30 @@ public class LoadGenerator {
             while (true) {
                 REQUEST_LIMITER.acquire();
                 scope.schedule(() -> {
-                    var started = System.currentTimeMillis();
-                    HTTP_CLIENT.send(HTTP_REQUEST, DISCARDING_BODY_HANDLER);
-                    var responseTime  = System.currentTimeMillis() - started;
+                    var responseTime = sendHttpRequest();
                     MIN_RESPONSE_TIME.getAndUpdate(i -> Math.min(i, responseTime));
                     MAX_RESPONSE_TIME.getAndUpdate(i -> Math.max(i, responseTime));
-                    REQUEST_LIMITER.release();
                 });
             }
+        }
+    }
+
+    private static long sendHttpRequest(){
+        try {
+            var started = System.currentTimeMillis();
+            HTTP_CLIENT.send(HTTP_REQUEST, DISCARDING_BODY_HANDLER);
+            return System.currentTimeMillis() - started;
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException(e);
+        } finally {
+            REQUEST_LIMITER.release();
         }
     }
 
     private static void registerResponseTimesMBean() throws InstanceAlreadyExistsException, MBeanRegistrationException, NotCompliantMBeanException, MalformedObjectNameException {
         ManagementFactory.getPlatformMBeanServer().registerMBean(
                 new ResponseTimes(),
-                new ObjectName("samples.samples3:type=ResponseTimeReporter")
+                new ObjectName("responseTimes:type=ResponseTimeReporter")
         );
     }
 
@@ -58,13 +67,19 @@ public class LoadGenerator {
             while (true) {
                 sleep(1000);
                 if (CURRENT_CONCURRENCY < MAX_CONCURRENCY) {
-                    var rampup = Math.min(100, MAX_CONCURRENCY - CURRENT_CONCURRENCY);
+                    var rampup = Math.min(50, MAX_CONCURRENCY - CURRENT_CONCURRENCY);
                     CURRENT_CONCURRENCY = CURRENT_CONCURRENCY + rampup;
                     Logger.log("Ramping up to " + CURRENT_CONCURRENCY + " concurrent requests.");
                     REQUEST_LIMITER.release(rampup);
                 }
             }
         });
+    }
+
+    public interface ResponseTimesMBean {
+        long getMaxDuration();
+        long getMinDuration();
+        long getConcurrentOutboundRequests();
     }
 
     public static class ResponseTimes implements ResponseTimesMBean {

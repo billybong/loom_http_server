@@ -29,7 +29,7 @@ public class HttpServerSample {
         server.start();
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        ObjectName name = new ObjectName("samples.samples3:type=ConcurrencyReporter");
+        ObjectName name = new ObjectName("httpserver:type=ConcurrencyReporter");
         var mbean = new ConcurrencyReporter();
         mbs.registerMBean(mbean, name);
 
