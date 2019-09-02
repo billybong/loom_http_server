@@ -10,8 +10,7 @@ import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.servlet.ServletContainer;
 import samples.sample3.server.mbean.ConcurrencyReporter;
 
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
+import javax.management.*;
 import java.lang.management.ManagementFactory;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -23,17 +22,23 @@ public class HttpServerSample {
 
     public static void main(String[] args) throws Exception {
         var fiberThreadPool = new FiberBackedThreadPool();
-        var server = new Server(fiberThreadPool);
-        doTheJettyCeremonialDance(server);
+        var jettyServer = new Server(fiberThreadPool);
+        doTheJettyCeremonialDance(jettyServer);
+        registerReporterMBean();
 
-        server.start();
+        try {
+            jettyServer.start();
+            jettyServer.join();
+        }finally {
+            jettyServer.stop();
+        }
+    }
 
+    private static void registerReporterMBean() throws Exception {
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         ObjectName name = new ObjectName("httpserver:type=ConcurrencyReporter");
         var mbean = new ConcurrencyReporter();
         mbs.registerMBean(mbean, name);
-
-        server.join();
     }
 
 
