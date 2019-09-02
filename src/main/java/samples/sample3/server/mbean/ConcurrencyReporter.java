@@ -1,6 +1,6 @@
-package samples.sample3.mbean;
+package samples.sample3.server.mbean;
 
-import samples.sample3.Endpoint;
+import samples.sample3.server.Endpoint;
 
 public class ConcurrencyReporter implements ConcurrencyReporterMBean {
     @Override

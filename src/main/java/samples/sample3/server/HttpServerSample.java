@@ -1,4 +1,4 @@
-package samples.sample3;
+package samples.sample3.server;
 
 import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.Server;
@@ -8,7 +8,7 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.util.thread.ThreadPool;
 import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.servlet.ServletContainer;
-import samples.sample3.mbean.ConcurrencyReporter;
+import samples.sample3.server.mbean.ConcurrencyReporter;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -19,7 +19,7 @@ import java.util.concurrent.Executors;
 
 import static org.eclipse.jetty.servlet.ServletContextHandler.NO_SESSIONS;
 
-public class JerseyApplication {
+public class HttpServerSample {
 
     public static void main(String[] args) throws Exception {
         var fiberThreadPool = new FiberBackedThreadPool();

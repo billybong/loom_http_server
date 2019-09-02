@@ -1,4 +1,4 @@
-package samples.sample3.mbean;
+package samples.sample3.server.mbean;
 
 public interface ConcurrencyReporterMBean {
     int getCurrentConcurrency();

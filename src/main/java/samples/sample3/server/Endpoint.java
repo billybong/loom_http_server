@@ -1,4 +1,4 @@
-package samples.sample3;
+package samples.sample3.server;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
