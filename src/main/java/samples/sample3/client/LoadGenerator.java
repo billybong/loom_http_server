@@ -1,5 +1,6 @@
 package samples.sample3.client;
 
+import samples.sample3.client.mbean.ResponseTimes;
 import util.Logger;
 
 import javax.management.*;
@@ -16,91 +17,93 @@ import java.util.concurrent.atomic.AtomicLong;
  * @noinspection WeakerAccess
  */
 public class LoadGenerator {
-    static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().executor(r -> FiberScope.background().schedule(r)).build();
-    static final HttpRequest HTTP_REQUEST = HttpRequest.newBuilder(URI.create("http://127.0.0.1:8080/hello")).build();
-    static final HttpResponse.BodyHandler<Void> DISCARDING_BODY_HANDLER = HttpResponse.BodyHandlers.discarding();
+    private static final int MAX_CONCURRENCY = 1000;
 
-    static int CURRENT_CONCURRENCY = 0;
-    static final int MAX_CONCURRENCY = 1_000;
-    static final Semaphore REQUEST_LIMITER = new Semaphore(CURRENT_CONCURRENCY);
+    public final Semaphore requestLimiter = new Semaphore(0);
 
-    static final AtomicLong MAX_RESPONSE_TIME = new AtomicLong();
-    static final AtomicLong MIN_RESPONSE_TIME = new AtomicLong(Integer.MAX_VALUE);
+    final HttpClient httpClient = HttpClient.newBuilder().executor(r -> FiberScope.background().schedule(r)).build();
+    final HttpRequest httpRequest = HttpRequest.newBuilder(URI.create("http://127.0.0.1:9080/hello")).build();
+    final HttpResponse.BodyHandler<Void> discardingBodyHandler = HttpResponse.BodyHandlers.discarding();
+
+    private final AtomicLong responseCount = new AtomicLong();
+    public final AtomicLong maxResponseTime = new AtomicLong();
+    public final AtomicLong minResponseTime = new AtomicLong(Integer.MAX_VALUE);
+    public final AtomicLong requestsPerSecond = new AtomicLong();
 
     public static void main(String[] args) throws Exception {
+        new LoadGenerator().start();
+    }
+
+    public void start() throws Exception {
         registerResponseTimesMBean();
+        scheduleMetricResets();
         scheduleRampup();
 
         try (var scope = FiberScope.open()) {
             while (true) {
-                REQUEST_LIMITER.acquire();
-                scope.schedule(() -> {
-                    var responseTime = sendHttpRequest();
-                    MIN_RESPONSE_TIME.getAndUpdate(i -> Math.min(i, responseTime));
-                    MAX_RESPONSE_TIME.getAndUpdate(i -> Math.max(i, responseTime));
-                });
+                requestLimiter.acquire();
+                scope.schedule(this::sendHttpRequest);
             }
         }
     }
 
-    private static long sendHttpRequest(){
+    private void sendHttpRequest() {
         try {
             var started = System.currentTimeMillis();
-            HTTP_CLIENT.send(HTTP_REQUEST, DISCARDING_BODY_HANDLER);
-            return System.currentTimeMillis() - started;
+            httpClient.send(httpRequest, discardingBodyHandler);
+            var responseTime = System.currentTimeMillis() - started;
+            recordMetrics(responseTime);
         } catch (IOException | InterruptedException e) {
-            throw new RuntimeException(e);
+            e.printStackTrace();
         } finally {
-            REQUEST_LIMITER.release();
+            requestLimiter.release();
         }
     }
 
-    private static void registerResponseTimesMBean() throws InstanceAlreadyExistsException, MBeanRegistrationException, NotCompliantMBeanException, MalformedObjectNameException {
-        ManagementFactory.getPlatformMBeanServer().registerMBean(
-                new ResponseTimes(),
-                new ObjectName("responseTimes:type=ResponseTimeReporter")
-        );
-    }
-
-    private static void scheduleRampup() {
+    private void scheduleRampup() {
         FiberScope.background().schedule(() -> {
-            while (true) {
+            var currentConcurrency = 0;
+            while (currentConcurrency < MAX_CONCURRENCY) {
                 sleep(1000);
-                if (CURRENT_CONCURRENCY < MAX_CONCURRENCY) {
-                    var rampup = Math.min(50, MAX_CONCURRENCY - CURRENT_CONCURRENCY);
-                    CURRENT_CONCURRENCY = CURRENT_CONCURRENCY + rampup;
-                    Logger.log("Ramping up to " + CURRENT_CONCURRENCY + " concurrent requests.");
-                    REQUEST_LIMITER.release(rampup);
-                }
+                var rampup = Math.min(50, MAX_CONCURRENCY - currentConcurrency);
+                currentConcurrency = currentConcurrency + rampup;
+                Logger.log("Ramping up to " + currentConcurrency + " concurrent requests.");
+                requestLimiter.release(rampup);
             }
         });
     }
 
-    public interface ResponseTimesMBean {
-        long getMaxDuration();
-        long getMinDuration();
-        long getConcurrentOutboundRequests();
+
+    private void scheduleMetricResets() {
+        FiberScope.background().schedule(() -> {
+            while (true) {
+                sleep(1000);
+                maxResponseTime.set(0);
+                minResponseTime.set(Integer.MAX_VALUE);
+                requestsPerSecond.set(responseCount.getAndSet(0));
+            }
+        });
     }
 
-    public static class ResponseTimes implements ResponseTimesMBean {
-        public long getMaxDuration() {
-            return MAX_RESPONSE_TIME.getAndSet(0);
-        }
-
-        public long getMinDuration() {
-            return MIN_RESPONSE_TIME.getAndSet(Long.MAX_VALUE);
-        }
-
-        public long getConcurrentOutboundRequests() {
-            return CURRENT_CONCURRENCY - REQUEST_LIMITER.availablePermits();
-        }
-    }
-
-    public static void sleep(int millis) {
+    private void sleep(int millis) {
         try {
             Thread.sleep(millis);
         } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            e.printStackTrace();
         }
+    }
+
+    private void recordMetrics(long responseTime) {
+        responseCount.incrementAndGet();
+        minResponseTime.getAndUpdate(i -> Math.min(i, responseTime));
+        maxResponseTime.getAndUpdate(i -> Math.max(i, responseTime));
+    }
+
+    private void registerResponseTimesMBean() throws InstanceAlreadyExistsException, MBeanRegistrationException, NotCompliantMBeanException, MalformedObjectNameException {
+        ManagementFactory.getPlatformMBeanServer().registerMBean(
+                new ResponseTimes(this),
+                new ObjectName("responseTimes:type=ResponseTimeReporter")
+        );
+        Logger.log("Registered MBean");
     }
 }

@@ -43,7 +43,7 @@ public class HttpServerSample {
 
     private static void doTheJettyCeremonialDance(Server server) {
         var http = new ServerConnector(server, 1, 1, new HttpConnectionFactory());
-        http.setPort(8080);
+        http.setPort(9080);
         server.addConnector(http);
 
         var servletContextHandler = new ServletContextHandler(NO_SESSIONS);
