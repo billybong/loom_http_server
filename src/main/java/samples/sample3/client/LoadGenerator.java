@@ -12,32 +12,27 @@ import java.net.http.HttpResponse;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * @noinspection WeakerAccess
- */
 public class LoadGenerator implements LoadGeneratorMBean {
-    private static final int MAX_CONCURRENCY = 1000;
+    private final Semaphore requestLimiter = new Semaphore(1000);
 
-    public final Semaphore requestLimiter = new Semaphore(MAX_CONCURRENCY);
+    private final HttpClient httpClient = HttpClient.newBuilder().executor(r -> FiberScope.background().schedule(r)).build();
+    private final HttpRequest httpRequest = HttpRequest.newBuilder(URI.create("http://127.0.0.1:9080/hello")).build();
+    private final HttpResponse.BodyHandler<Void> discardingBodyHandler = HttpResponse.BodyHandlers.discarding();
 
-    final HttpClient httpClient = HttpClient.newBuilder().executor(r -> FiberScope.background().schedule(r)).build();
-    final HttpRequest httpRequest = HttpRequest.newBuilder(URI.create("http://127.0.0.1:9080/hello")).build();
-    final HttpResponse.BodyHandler<Void> discardingBodyHandler = HttpResponse.BodyHandlers.discarding();
-
+    private final AtomicLong maxResponseTime = new AtomicLong();
+    private final AtomicLong minResponseTime = new AtomicLong(-1);
     private final AtomicLong successCount = new AtomicLong();
     private final AtomicLong failureCounts = new AtomicLong();
-    private final AtomicLong maxResponseTime = new AtomicLong();
-    private final AtomicLong minResponseTime = new AtomicLong(Integer.MAX_VALUE);
-    private final AtomicLong requestsPerSecond = new AtomicLong();
+    private final AtomicLong successesPerSecond = new AtomicLong();
     private final AtomicLong failuresPerSecond = new AtomicLong();
 
     public static void main(String[] args) throws Exception {
         new LoadGenerator().start();
     }
 
-    public void start() throws Exception {
+    private void start() throws Exception {
         ManagementFactory.getPlatformMBeanServer().registerMBean(this, new ObjectName("loadGenerator:type=LoadGenerator"));
-        scheduleMetricResets();
+        FiberScope.background().schedule(this::resetMetrics);
         Logger.log("Sending requests...");
         try (var scope = FiberScope.open()) {
             while (true) {
@@ -52,37 +47,31 @@ public class LoadGenerator implements LoadGeneratorMBean {
             var started = System.currentTimeMillis();
             httpClient.send(httpRequest, discardingBodyHandler);
             var responseTime = System.currentTimeMillis() - started;
-            recordMetrics(responseTime);
-        } catch (IOException | InterruptedException connectException){
+            recordSuccess(responseTime);
+        } catch (IOException | InterruptedException exception) {
             failureCounts.incrementAndGet();
         } finally {
             requestLimiter.release();
         }
     }
 
-    private void scheduleMetricResets() {
-        FiberScope.background().schedule(() -> {
-            while (true) {
-                sleep(1000);
-                maxResponseTime.set(0);
-                minResponseTime.set(Integer.MAX_VALUE);
-                failuresPerSecond.set(failureCounts.getAndSet(0));
-                requestsPerSecond.set(successCount.getAndSet(0));
-            }
-        });
-    }
-
-    private void sleep(int millis) {
+    private void resetMetrics() {
         try {
-            Thread.sleep(millis);
+            while (true) {
+                Thread.sleep(1000);
+                maxResponseTime.set(0);
+                minResponseTime.set(-1);
+                failuresPerSecond.set(failureCounts.getAndSet(0));
+                successesPerSecond.set(successCount.getAndSet(0));
+            }
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
     }
 
-    private void recordMetrics(long responseTime) {
+    private void recordSuccess(long responseTime) {
         successCount.incrementAndGet();
-        minResponseTime.getAndUpdate(i -> Math.min(i, responseTime));
+        minResponseTime.getAndUpdate(i -> i == -1 ? responseTime : Math.min(i, responseTime));
         maxResponseTime.getAndUpdate(i -> Math.max(i, responseTime));
     }
 
@@ -97,8 +86,8 @@ public class LoadGenerator implements LoadGeneratorMBean {
     }
 
     @Override
-    public long getRequestsPerSecond() {
-        return requestsPerSecond.get();
+    public long getSuccessesPerSecond() {
+        return successesPerSecond.get();
     }
 
     @Override
