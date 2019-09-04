@@ -20,9 +20,13 @@ import static org.eclipse.jetty.servlet.ServletContextHandler.NO_SESSIONS;
 public class HttpServerSample {
 
     public static void main(String[] args) throws Exception {
-        var fiberThreadPool = new FiberBackedThreadPool();
-        var jettyServer = new Server(fiberThreadPool);
-        doTheJettyCeremonialDance(jettyServer);
+        var jettyServer = new Server(new FiberBackedThreadPool());
+
+        var httpConnector = new ServerConnector(jettyServer, 0, 1, new HttpConnectionFactory());
+        httpConnector.setPort(9080);
+        jettyServer.addConnector(httpConnector);
+
+        doTheJerseyCeremonialDance(jettyServer);
         registerReporterMBean();
 
         try {
@@ -41,11 +45,7 @@ public class HttpServerSample {
     }
 
 
-    private static void doTheJettyCeremonialDance(Server server) {
-        var http = new ServerConnector(server, 0, 1, new HttpConnectionFactory());
-        http.setPort(9080);
-        server.addConnector(http);
-
+    private static void doTheJerseyCeremonialDance(Server server) {
         var servletContextHandler = new ServletContextHandler(NO_SESSIONS);
         servletContextHandler.setContextPath("/");
         server.setHandler(servletContextHandler);
