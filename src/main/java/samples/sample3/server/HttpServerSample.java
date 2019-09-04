@@ -42,7 +42,7 @@ public class HttpServerSample {
 
 
     private static void doTheJettyCeremonialDance(Server server) {
-        var http = new ServerConnector(server, 1, 1, new HttpConnectionFactory());
+        var http = new ServerConnector(server, 0, 1, new HttpConnectionFactory());
         http.setPort(9080);
         server.addConnector(http);
 
@@ -56,8 +56,8 @@ public class HttpServerSample {
     }
 
     public static class FiberBackedThreadPool implements ThreadPool {
-        //Jetty reserves at least 1 thread for IO connector, so 2 is magic number to get 1 worker thread.
-        ExecutorService executorService = Executors.newWorkStealingPool(2);
+        //Jetty reserves at least 1 thread for IO selector, so 2 is magic number to get 1 worker thread.
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
 
         @Override
         public void execute(Runnable command) {

@@ -50,6 +50,7 @@ public class LoadGenerator implements LoadGeneratorMBean {
             recordSuccess(responseTime);
         } catch (IOException | InterruptedException exception) {
             failureCounts.incrementAndGet();
+            exception.printStackTrace();
         } finally {
             requestLimiter.release();
         }
