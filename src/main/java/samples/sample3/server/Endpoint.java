@@ -13,9 +13,9 @@ public class Endpoint {
 
     @GET
     public String hello() throws InterruptedException {
-        Logger.log("in endpoint");
+        //Logger.log("in endpoint");
         concurrency.incrementAndGet();
-        Thread.sleep(1000);
+        //Thread.sleep(1000);
         concurrency.decrementAndGet();
         return "hello";
     }

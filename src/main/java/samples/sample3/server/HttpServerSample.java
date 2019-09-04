@@ -22,6 +22,9 @@ public class HttpServerSample {
     public static void main(String[] args) throws Exception {
         var fiberThreadPool = new FiberBackedThreadPool();
         var jettyServer = new Server(fiberThreadPool);
+        var http = new ServerConnector(jettyServer, 0, 7, new HttpConnectionFactory());
+        http.setPort(9080);
+        jettyServer.addConnector(http);
         doTheJettyCeremonialDance(jettyServer);
         registerReporterMBean();
 
@@ -42,10 +45,6 @@ public class HttpServerSample {
 
 
     private static void doTheJettyCeremonialDance(Server server) {
-        var http = new ServerConnector(server, 0, 1, new HttpConnectionFactory());
-        http.setPort(9080);
-        server.addConnector(http);
-
         var servletContextHandler = new ServletContextHandler(NO_SESSIONS);
         servletContextHandler.setContextPath("/");
         server.setHandler(servletContextHandler);
@@ -57,7 +56,7 @@ public class HttpServerSample {
 
     public static class FiberBackedThreadPool implements ThreadPool {
         //Jetty reserves at least 1 thread for IO selector, so 2 is magic number to get 1 worker thread.
-        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        ExecutorService executorService = Executors.newFixedThreadPool(8);
 
         @Override
         public void execute(Runnable command) {

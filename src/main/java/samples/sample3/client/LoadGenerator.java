@@ -13,7 +13,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class LoadGenerator implements LoadGeneratorMBean {
-    private final Semaphore requestLimiter = new Semaphore(1000);
+    private final Semaphore requestLimiter = new Semaphore(10_000);
 
     private final HttpClient httpClient = HttpClient.newBuilder().executor(r -> FiberScope.background().schedule(r)).build();
     private final HttpRequest httpRequest = HttpRequest.newBuilder(URI.create("http://127.0.0.1:9080/hello")).build();
