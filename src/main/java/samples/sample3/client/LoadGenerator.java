@@ -1,7 +1,5 @@
 package samples.sample3.client;
 
-import util.Logger;
-
 import javax.management.ObjectName;
 import java.lang.management.ManagementFactory;
 import java.net.URI;
@@ -12,23 +10,13 @@ import java.util.concurrent.Semaphore;
 
 public class LoadGenerator {
 
-    private final Statistics statistics;
-
-    private LoadGenerator(Statistics statistics) {
-        this.statistics = statistics;
-    }
+    private static Statistics statistics = new Statistics();
 
     public static void main(String[] args) throws Exception {
-        var statistics = new Statistics();
-        ManagementFactory.getPlatformMBeanServer().registerMBean(statistics, new ObjectName("loadGenerator:type=Stats"));
-        Logger.log("Starting LoadGenerator...");
-        new LoadGenerator(statistics).start();
-    }
+        var mbeanServer = ManagementFactory.getPlatformMBeanServer();
+        mbeanServer.registerMBean(statistics, new ObjectName("loadGenerator:type=Stats"));
 
-    private void start() throws Exception {
-        var httpClient = HttpClient.newBuilder()
-                .executor(runnable -> FiberScope.background().schedule(runnable))
-                .build();
+        var httpClient = HttpClient.newBuilder().executor(runnable -> FiberScope.background().schedule(runnable)).build();
         var httpRequest = HttpRequest.newBuilder(URI.create("http://127.0.0.1:9080/hello")).build();
         var requestLimiter = new Semaphore(10_000);
         while (true) {
