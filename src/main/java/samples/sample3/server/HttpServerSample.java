@@ -20,14 +20,14 @@ public class HttpServerSample {
         httpConnector.setPort(9080);
         jettyServer.addConnector(httpConnector);
 
-        jettyServer.setHandler(jerseyServletHandler(jettyServer));
+        jettyServer.setHandler(jerseyServletHandler());
 
         jettyServer.start();
         jettyServer.join();
     }
 
 
-    private static ServletContextHandler jerseyServletHandler(Server server) {
+    private static ServletContextHandler jerseyServletHandler() {
         var servletContextHandler = new ServletContextHandler(null, "/", NO_SESSIONS | NO_SECURITY);
         var servletHolder = servletContextHandler.addServlet(ServletContainer.class, "/*");
         servletHolder.setInitParameter(ServerProperties.PROVIDER_CLASSNAMES, Endpoint.class.getCanonicalName());
