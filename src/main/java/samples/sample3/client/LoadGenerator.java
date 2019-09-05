@@ -13,7 +13,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class LoadGenerator implements LoadGeneratorMBean {
-    private final Semaphore requestLimiter = new Semaphore(10_000);
+    private static final int CONCURRENT_REQUESTS = 10_000;
 
     private final HttpClient httpClient = HttpClient.newBuilder().executor(r -> FiberScope.background().schedule(r)).build();
     private final HttpRequest httpRequest = HttpRequest.newBuilder(URI.create("http://127.0.0.1:9080/hello")).build();
@@ -27,53 +27,59 @@ public class LoadGenerator implements LoadGeneratorMBean {
     private final AtomicLong failuresPerSecond = new AtomicLong();
 
     public static void main(String[] args) throws Exception {
-        new LoadGenerator().start();
+        LoadGenerator loadGenerator = new LoadGenerator();
+        ManagementFactory.getPlatformMBeanServer().registerMBean(loadGenerator, new ObjectName("loadGenerator:type=LoadGenerator"));
+        FiberScope.background().schedule(() -> {
+            while (true) {
+                sleep(1000);
+                loadGenerator.resetMetrics();
+            }
+        });
+        loadGenerator.start();
     }
 
     private void start() throws Exception {
-        ManagementFactory.getPlatformMBeanServer().registerMBean(this, new ObjectName("loadGenerator:type=LoadGenerator"));
-        FiberScope.background().schedule(this::resetMetrics);
+        FiberScope scope = FiberScope.background();
+        var requestLimiter = new Semaphore(CONCURRENT_REQUESTS);
         Logger.log("Sending requests...");
-        try (var scope = FiberScope.open()) {
-            while (true) {
-                requestLimiter.acquire();
-                scope.schedule(this::sendHttpRequest);
-            }
+        while (true) {
+            requestLimiter.acquire();
+            scope.schedule(() -> {
+                try {
+                    var responseTime = sendHttpRequest();
+                    recordSuccess(responseTime);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    recordFailure();
+                }
+            });
         }
     }
 
-    private void sendHttpRequest() {
-        try {
-            var started = System.currentTimeMillis();
-            httpClient.send(httpRequest, discardingBodyHandler);
-            var responseTime = System.currentTimeMillis() - started;
-            recordSuccess(responseTime);
-        } catch (IOException | InterruptedException exception) {
-            failureCounts.incrementAndGet();
-            exception.printStackTrace();
-        } finally {
-            requestLimiter.release();
-        }
+    /**
+     * @return response time in ms
+     */
+    private long sendHttpRequest() throws IOException, InterruptedException {
+        var started = System.currentTimeMillis();
+        httpClient.send(httpRequest, discardingBodyHandler);
+        return System.currentTimeMillis() - started;
     }
 
     private void resetMetrics() {
-        try {
-            while (true) {
-                Thread.sleep(1000);
-                maxResponseTime.set(0);
-                minResponseTime.set(-1);
-                failuresPerSecond.set(failureCounts.getAndSet(0));
-                successesPerSecond.set(successCount.getAndSet(0));
-            }
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        maxResponseTime.set(0);
+        minResponseTime.set(-1);
+        failuresPerSecond.set(failureCounts.getAndSet(0));
+        successesPerSecond.set(successCount.getAndSet(0));
     }
 
     private void recordSuccess(long responseTime) {
         successCount.incrementAndGet();
         minResponseTime.getAndUpdate(i -> i == -1 ? responseTime : Math.min(i, responseTime));
         maxResponseTime.getAndUpdate(i -> Math.max(i, responseTime));
+    }
+
+    private void recordFailure() {
+        this.failureCounts.getAndIncrement();
     }
 
     @Override
@@ -94,5 +100,13 @@ public class LoadGenerator implements LoadGeneratorMBean {
     @Override
     public long getFailuresPerSecond() {
         return failuresPerSecond.get();
+    }
+
+    private static void sleep(int ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 }
