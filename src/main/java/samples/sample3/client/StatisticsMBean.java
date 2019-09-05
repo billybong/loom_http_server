@@ -1,6 +1,6 @@
 package samples.sample3.client;
 
-public interface StatsMBean {
+public interface StatisticsMBean {
     long getMaxResponseTime();
     long getMinResponseTime();
     long getSuccessesPerSecond();

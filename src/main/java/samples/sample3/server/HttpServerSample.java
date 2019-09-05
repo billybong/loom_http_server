@@ -4,30 +4,21 @@ import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.util.thread.ThreadPool;
 import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.servlet.ServletContainer;
-import samples.sample3.server.mbean.ConcurrencyReporter;
-
-import javax.management.ObjectName;
-import java.lang.management.ManagementFactory;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static org.eclipse.jetty.servlet.ServletContextHandler.NO_SESSIONS;
 
 public class HttpServerSample {
 
     public static void main(String[] args) throws Exception {
-        var jettyServer = new Server(new FiberBackedThreadPool());
-
+        //Jetty reserves at least 1 thread for IO selector, so 2 is magic number to get 1 worker thread.
+        var jettyServer = new Server(new FiberBackedJettyThreadPool(2));
         var httpConnector = new ServerConnector(jettyServer, 0, 1, new HttpConnectionFactory());
         httpConnector.setPort(9080);
         jettyServer.addConnector(httpConnector);
 
-        doTheJerseyCeremonialDance(jettyServer);
-        registerReporterMBean();
+        configureJerseyJaxRS(jettyServer);
 
         try {
             jettyServer.start();
@@ -37,15 +28,8 @@ public class HttpServerSample {
         }
     }
 
-    private static void registerReporterMBean() throws Exception {
-        ManagementFactory.getPlatformMBeanServer().registerMBean(
-                new ConcurrencyReporter(),
-                new ObjectName("httpserver:type=ConcurrencyReporter")
-        );
-    }
 
-
-    private static void doTheJerseyCeremonialDance(Server server) {
+    private static void configureJerseyJaxRS(Server server) {
         var servletContextHandler = new ServletContextHandler(NO_SESSIONS);
         servletContextHandler.setContextPath("/");
         server.setHandler(servletContextHandler);
@@ -53,35 +37,5 @@ public class HttpServerSample {
         var servletHolder = servletContextHandler.addServlet(ServletContainer.class, "/*");
         servletHolder.setInitOrder(0);
         servletHolder.setInitParameter(ServerProperties.PROVIDER_CLASSNAMES, Endpoint.class.getCanonicalName());
-    }
-
-    public static class FiberBackedThreadPool implements ThreadPool {
-        //Jetty reserves at least 1 thread for IO selector, so 2 is magic number to get 1 worker thread.
-        ExecutorService executorService = Executors.newFixedThreadPool(2);
-
-        @Override
-        public void execute(Runnable command) {
-            FiberScope.background().schedule(executorService, command);
-        }
-
-        @Override
-        public void join() throws InterruptedException {
-            new CountDownLatch(1).await();
-        }
-
-        @Override
-        public int getThreads() {
-            return 0;
-        }
-
-        @Override
-        public int getIdleThreads() {
-            return Integer.MAX_VALUE;
-        }
-
-        @Override
-        public boolean isLowOnThreads() {
-            return false;
-        }
     }
 }

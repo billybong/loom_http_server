@@ -2,7 +2,7 @@ package samples.sample3.client;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-public class Statistics implements StatsMBean {
+public class Statistics implements StatisticsMBean {
     private final AtomicLong maxResponseTime = new AtomicLong();
     private final AtomicLong minResponseTime = new AtomicLong(-1);
     private final AtomicLong successCount = new AtomicLong();
