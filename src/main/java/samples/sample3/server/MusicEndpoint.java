@@ -11,6 +11,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Path("music")
@@ -33,11 +35,11 @@ public class MusicEndpoint {
     @Path("/{id}")
     public Map<String, Object> musicInfo(@PathParam("id") String id) {
         var uuid = UUID.fromString("5b11f4ce-a62d-471e-81fc-a69a8278c7da");
-        var musicBrainz = fetchMusicBrainzInfo();
-        var albumsFibers = getAlbums(musicBrainz.getAlbums());
+        var musicBrainz = fetchMusicBrainzInfo(uuid);
+        var albumsFibers = fetchAlbums(musicBrainz.getAlbums());
         var wikipediaDescription = fetchWikipediaInfo(musicBrainz.getWikipediaLink());
         var albums = albumsFibers.stream()
-                .map(it -> it.toFuture().join())
+                .map(CompletableFuture::join)
                 .flatMap(Optional::stream)
                 .collect(Collectors.toList());
         return Map.of("mbid", uuid,
@@ -45,17 +47,15 @@ public class MusicEndpoint {
                 "albums", albums);
     }
 
-    private MusicBrainz fetchMusicBrainzInfo() {
-        var uri = URI.create(String.format(MUSIC_BRAINZ_URL, "5b11f4ce-a62d-471e-81fc-a69a8278c7da"));
+    private MusicBrainz fetchMusicBrainzInfo(UUID uuid) {
+        var uri = URI.create(String.format(MUSIC_BRAINZ_URL, uuid));
         return httpCaller.get(uri, MusicBrainz.class).orElseThrow(() -> new NotFoundException("no musicbrainz info found"));
     }
 
-    private List<Fiber<Optional<Album>>> getAlbums(List<MusicBrainz.ReleaseGroup> releaseGroups) {
-        try (var scope = FiberScope.open()) {
+    private List<CompletableFuture<Optional<Album>>> fetchAlbums(List<MusicBrainz.ReleaseGroup> releaseGroups) {
             return releaseGroups.stream()
-                    .map(album -> scope.schedule(retry(() -> fetchAlbum(album))))
+                    .map(album -> CompletableFuture.supplyAsync(retry(() -> fetchAlbum(album))))
                     .collect(Collectors.toList());
-        }
     }
 
     private Optional<Album> fetchAlbum(MusicBrainz.ReleaseGroup album) {
@@ -86,15 +86,15 @@ public class MusicEndpoint {
         }
     }
 
-    public static <T> Callable<T> retry(Callable<T> callable) {
+    public static <T> Supplier<T> retry(Callable<T> callable) {
         return () -> {
-            int triesLef = 3;
+            int triesLeft = 3;
             Exception lastException = null;
-            while (triesLef > 0) {
+            while (triesLeft > 0) {
                 try {
                     return callable.call();
                 } catch (Exception e) {
-                    --triesLef;
+                    --triesLeft;
                     lastException = e;
                 }
             }
