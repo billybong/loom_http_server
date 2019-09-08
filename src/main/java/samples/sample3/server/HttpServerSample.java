@@ -30,7 +30,7 @@ public class HttpServerSample {
     private static ServletContextHandler jerseyServletHandler(Server server) {
         var servletContextHandler = new ServletContextHandler(null, "/", NO_SESSIONS | NO_SECURITY);
         var servletHolder = servletContextHandler.addServlet(ServletContainer.class, "/*");
-        servletHolder.setInitParameter(ServerProperties.PROVIDER_CLASSNAMES, Endpoint.class.getCanonicalName());
+        servletHolder.setInitParameter(ServerProperties.PROVIDER_PACKAGES, Endpoint.class.getPackageName());
         return servletContextHandler;
     }
 }
