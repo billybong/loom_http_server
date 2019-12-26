@@ -1,4 +1,4 @@
-package samples.sample3.server;
+package samples.sample3.server.jetty;
 
 import org.eclipse.jetty.util.thread.ThreadPool;
 
@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit;
 public class FiberBackedJettyThreadPool implements ThreadPool {
     private final ExecutorService executorService;
 
-    FiberBackedJettyThreadPool(int osThreads) {
+    public FiberBackedJettyThreadPool(int osThreads) {
         executorService =  Executors.newFixedThreadPool(osThreads);
     }
 
